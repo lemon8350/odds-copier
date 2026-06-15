@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>オッズ＆人気順 コピー機</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1e1e2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    
+    <!-- Google Fonts: Outfit & Noto Sans JP -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <h1>オッズ＆人気順 コピー機</h1>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <input type="date" id="target-date" style="margin-bottom: 0; padding: 4px; height: 28px; width: auto; font-size: 14px; background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.3); border-radius: 4px;">
+                    <div class="status-indicator" id="status-indicator"></div>
+                </div>
+        </header>
+
+        <main>
+            <!-- Copier View -->
+            <div id="view-copier" class="view-section active">
+                <section class="detail-card glass" style="margin-bottom: 15px;">
+                    <h3>対象レースを選択</h3>
+                    <p style="font-size: 12px; margin-bottom: 10px; color: #ccc;">カレンダーの日付に対応するレース一覧から、WIN5対象の5レースを選んでください。</p>
+                    
+                    <div id="race-selectors" style="display: flex; flex-direction: column; gap: 10px;">
+                        <!-- Race 1-5 Dropdowns -->
+                        <div class="controls">
+                            <label>1レース目</label>
+                            <select id="win5-race-1"><option value="">ロード中...</option></select>
+                        </div>
+                        <div class="controls">
+                            <label>2レース目</label>
+                            <select id="win5-race-2"><option value="">ロード中...</option></select>
+                        </div>
+                        <div class="controls">
+                            <label>3レース目</label>
+                            <select id="win5-race-3"><option value="">ロード中...</option></select>
+                        </div>
+                        <div class="controls">
+                            <label>4レース目</label>
+                            <select id="win5-race-4"><option value="">ロード中...</option></select>
+                        </div>
+                        <div class="controls">
+                            <label>5レース目</label>
+                            <select id="win5-race-5"><option value="">ロード中...</option></select>
+                        </div>
+                    </div>
+                    
+                    <button class="btn primary" id="btn-fetch-odds" style="margin-top: 15px;">オッズと人気順を取得</button>
+                    <div class="loading-spinner hidden" id="spinner-odds"></div>
+                </section>
+
+                <section class="detail-card glass">
+                    <h3>コピー用テキスト</h3>
+                    <textarea id="odds-output" rows="12" style="width: 100%; border-radius: 4px; padding: 10px; font-size: 13px; background: rgba(255,255,255,0.9); color: #000; border: none; margin-bottom: 10px;" readonly></textarea>
+                    <button class="btn secondary" id="btn-copy-odds">クリップボードにコピー</button>
+                </section>
+            </div> <!-- End view-copier -->
+        </main>
+    </div>
+
+    <!-- Cache busting parameter to force iPhone to load latest app.js -->
+    <script src="app.js?v=2"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+            .then(() => console.log('Service Worker Registered'));
+        }
+    </script>
+</body>
+</html>
