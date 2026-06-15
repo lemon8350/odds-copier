@@ -29,6 +29,13 @@ async function fetchAPI(endpoint) {
         statusIndicator.style.backgroundColor = 'var(--accent-success)';
         statusIndicator.style.boxShadow = '0 0 10px var(--accent-success)';
         return await res.json();
+    } catch (error) {
+        console.error('API call failed:', error);
+        statusIndicator.style.backgroundColor = 'var(--accent-error)';
+        statusIndicator.style.boxShadow = '0 0 10px var(--accent-error)';
+        return null;
+    }
+}
 // --- Copier Logic ---
 const btnFetchOdds = document.getElementById('btn-fetch-odds');
 const spinnerOdds = document.getElementById('spinner-odds');
