@@ -29,170 +29,133 @@ async function fetchAPI(endpoint) {
         statusIndicator.style.backgroundColor = 'var(--accent-success)';
         statusIndicator.style.boxShadow = '0 0 10px var(--accent-success)';
         return await res.json();
-    } catch (error) {
-        console.error('API call failed:', error);
-        statusIndicator.style.backgroundColor = 'var(--accent-error)';
-        statusIndicator.style.boxShadow = '0 0 10px var(--accent-error)';
+    } catch (e) {
+        statusIndicator.style.backgroundColor = 'var(--accent-secondary)';
+        statusIndicator.style.boxShadow = '0 0 10px var(--accent-secondary)';
+        console.error(e);
         return null;
     }
 }
-// --- Copier Logic ---
-const btnFetchOdds = document.getElementById('btn-fetch-odds');
-const spinnerOdds = document.getElementById('spinner-odds');
-const btnCopyOdds = document.getElementById('btn-copy-odds');
-const oddsOutput = document.getElementById('odds-output');
 
-// 競馬場コード変換用
-const courseMap = {
-    "01": "札幌", "02": "函館", "03": "福島", "04": "新潟", "05": "東京",
-    "06": "中山", "07": "中京", "08": "京都", "09": "阪神", "10": "小倉"
-};
-
-function formatRaceName(raceId) {
-    const courseCode = raceId.substring(4, 6);
-    const raceNum = parseInt(raceId.substring(10, 12), 10);
-    const courseName = courseMap[courseCode] || courseCode;
-    return `${courseName}${raceNum}R`;
+function updateGauge() {
+    if (ceiling === null || current === null) return;
+    
+    const remaining = ceiling - current;
+    elRemaining.innerText = remaining > 0 ? remaining : 0;
+    
+    // Gauge max is ceiling.
+    let ratio = 1 - (current / ceiling);
+    if (ratio < 0) ratio = 0;
+    if (ratio > 1) ratio = 1;
+    
+    // The SVG path has length ~125.6
+    // offset 125.6 is empty (0%)
+    // offset 0 is full (100%)
+    const offset = 125.6 - (125.6 * ratio);
+    elGaugeVal.style.strokeDashoffset = offset;
+    
+    // Color and message logic
+    elMessage.className = 'gauge-message'; // reset
+    if (remaining >= 20) {
+        elGaugeVal.style.stroke = 'var(--accent-success)'; // Green
+        elMessage.innerText = `和${remaining} 以内。大荒れまで許容される大波乱推奨！`;
+        elMessage.classList.add('msg-safe');
+    } else if (remaining >= 10) {
+        elGaugeVal.style.stroke = 'var(--accent-warning)'; // Yellow
+        elMessage.innerText = `和${remaining} 以内。中穴狙いが面白そう。`;
+        elMessage.classList.add('msg-warn');
+    } else if (remaining > 0) {
+        elGaugeVal.style.stroke = 'var(--accent-secondary)'; // Red
+        elMessage.innerText = `和${remaining} 以内。超ガチガチ決着濃厚！本命狙い！`;
+        elMessage.classList.add('msg-danger');
+    } else {
+        elGaugeVal.style.stroke = 'var(--accent-secondary)';
+        elMessage.innerText = `すでに上限突破！波乱の連続です。`;
+        elMessage.classList.add('msg-danger');
+    }
 }
 
-async function loadRacesForCopier() {
-    // If races are already loaded for the current date, skip.
-    // Otherwise fetch from /api/races
-    
-    // Instead of forcing Sunday, get the exact date from the input
+// --- Helpers ---
+function getWeekendDatesFromInput() {
     const val = targetDateInput.value;
-    if (!val) return;
+    if (!val) return { sat: '', sun: '' }; // Fallback to backend auto
     
+    // Parse selected date (e.g. "2026-06-07")
     const d = new Date(val);
-    if (isNaN(d.getTime())) return;
+    if (isNaN(d.getTime())) return { sat: '', sun: '' };
     
-    const targetDate = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-
-    // We can fetch races
-    const data = await fetchAPI(`/races?target_date=${targetDate}`);
-    if (data && data.races) {
-        const races = data.races; // List of race IDs
-        
-        // Populate 5 dropdowns
-        for (let i = 1; i <= 5; i++) {
-            const select = document.getElementById(`win5-race-${i}`);
-            // Keep the selected value if it exists and is in the new list, otherwise reset
-            const currentVal = select.value;
-            select.innerHTML = '';
-            
-            // Add an empty default option
-            const defaultOpt = document.createElement('option');
-            defaultOpt.value = "";
-            defaultOpt.innerText = "選択してください";
-            select.appendChild(defaultOpt);
-
-            races.forEach(r => {
-                const opt = document.createElement('option');
-                opt.value = r;
-                opt.innerText = formatRaceName(r);
-                select.appendChild(opt);
-            });
-
-            // Try to auto-select if empty
-            if (currentVal && races.includes(currentVal)) {
-                select.value = currentVal;
-            }
-        }
-        
-        // Basic Auto-select logic using the backend's predicted WIN5 races
-        if (data.win5_races && data.win5_races.length === 5) {
-            for (let i = 0; i < 5; i++) {
-                const sel = document.getElementById(`win5-race-${i+1}`);
-                if (!sel.value) { // Only auto-select if empty
-                    sel.value = data.win5_races[i];
-                }
-            }
-        } else {
-            // Fallback: naive auto-select
-            if (!document.getElementById('win5-race-1').value) {
-                const r10 = races.filter(r => r.endsWith('10'));
-                const r11 = races.filter(r => r.endsWith('11'));
-                const autoSelects = [...r10, ...r11].sort();
-                for (let i = 0; i < Math.min(5, autoSelects.length); i++) {
-                    document.getElementById(`win5-race-${i+1}`).value = autoSelects[i];
-                }
-            }
-        }
+    // Find closest weekend (assuming the picked date is roughly around the target weekend)
+    // If the picked date is a Sunday(0), Saturday is d - 1 day.
+    // If the picked date is a Saturday(6), Sunday is d + 1 day.
+    const day = d.getDay();
+    let satDate = new Date(d);
+    let sunDate = new Date(d);
+    
+    if (day === 6) {
+        sunDate.setDate(d.getDate() + 1);
+    } else if (day === 0) {
+        satDate.setDate(d.getDate() - 1);
+    } else {
+        // If a weekday is picked, default to the upcoming weekend
+        const daysToSat = 6 - day;
+        satDate.setDate(d.getDate() + daysToSat);
+        sunDate.setDate(d.getDate() + daysToSat + 1);
     }
+    
+    const fmt = (dt) => {
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const dNum = String(dt.getDate()).padStart(2, '0');
+        return `${y}${m}${dNum}`;
+    };
+    
+    return { sat: fmt(satDate), sun: fmt(sunDate) };
 }
 
-targetDateInput.addEventListener('change', () => {
-    // Reload races
-    loadRacesForCopier();
+// --- Event Listeners ---
+btnSat.addEventListener('click', async () => {
+    btnSat.classList.add('hidden');
+    spinnerSat.classList.remove('hidden');
+    
+    const dates = getWeekendDatesFromInput();
+    const q = dates.sat ? `?target_date=${dates.sat}` : '';
+    
+    const data = await fetchAPI(`/saturday-ceiling${q}`);
+    if (data && data.ceiling !== undefined) {
+        ceiling = data.ceiling;
+        elCeiling.innerText = ceiling;
+        updateGauge();
+    }
+    
+    spinnerSat.classList.add('hidden');
+    btnSat.classList.remove('hidden');
 });
 
-btnFetchOdds.addEventListener('click', async () => {
-    btnFetchOdds.classList.add('hidden');
-    spinnerOdds.classList.remove('hidden');
+btnSun.addEventListener('click', async () => {
+    btnSun.classList.add('hidden');
+    spinnerSun.classList.remove('hidden');
     
-    // Collect selected race IDs
-    const raceIds = [];
-    for (let i = 1; i <= 5; i++) {
-        const val = document.getElementById(`win5-race-${i}`).value;
-        if (val) raceIds.push(val);
+    const upTo = raceSelect.value;
+    const dates = getWeekendDatesFromInput();
+    const qTarget = dates.sun ? `&target_date=${dates.sun}` : '';
+    
+    const data = await fetchAPI(`/sunday-current?up_to_race=${upTo}${qTarget}`);
+    if (data && data.current_sum !== undefined) {
+        current = data.current_sum;
+        elCurrent.innerText = current;
+        updateGauge();
     }
     
-    if (raceIds.length === 0) {
-        oddsOutput.value = "レースが選択されていません。";
-        spinnerOdds.classList.add('hidden');
-        btnFetchOdds.classList.remove('hidden');
-        return;
-    }
-
-    // Build Query
-    const qParams = raceIds.map(id => `race_ids=${id}`).join('&');
-    const data = await fetchAPI(`/win5-live-odds?${qParams}`);
-    
-    if (data && data.races) {
-        let outText = "";
-        for (const r_id of raceIds) {
-            outText += `【${formatRaceName(r_id)}】\n`;
-            outText += "馬番\t馬名\t単勝オッズ\t人気順\n"; // Excel用ヘッダー
-            const horses = data.races[r_id] || [];
-            if (horses.length === 0) {
-                outText += "データがありません\n\n";
-                continue;
-            }
-            horses.forEach(h => {
-                outText += `${h.umaban}\t${h.horse_name}\t${h.odds}\t${h.popularity}\n`;
-            });
-            outText += "\n";
-        }
-        oddsOutput.value = outText.trim();
-    } else {
-        oddsOutput.value = "取得に失敗しました。";
-    }
-
-    spinnerOdds.classList.add('hidden');
-    btnFetchOdds.classList.remove('hidden');
+    spinnerSun.classList.add('hidden');
+    btnSun.classList.remove('hidden');
 });
 
-btnCopyOdds.addEventListener('click', () => {
-    oddsOutput.focus();
-    oddsOutput.setSelectionRange(0, oddsOutput.value.length);
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(oddsOutput.value);
-    } else {
-        document.execCommand('copy');
-    }
-    const originalText = btnCopyOdds.innerText;
-    btnCopyOdds.innerText = "コピー完了！";
-    btnCopyOdds.style.backgroundColor = "var(--accent-success)";
-    setTimeout(() => {
-        btnCopyOdds.innerText = originalText;
-        btnCopyOdds.style.backgroundColor = "var(--accent-secondary)";
-    }, 2000);
-});
+// Initial Ping
+fetchAPI('/status');
 
 // Initialize init logic
 document.addEventListener('DOMContentLoaded', () => {
     // set default input to today
     const now = new Date();
     targetDateInput.value = now.toISOString().split('T')[0];
-    loadRacesForCopier();
 });

@@ -3,18 +3,15 @@ from bs4 import BeautifulSoup
 import re
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def fetch_with_retry(url, headers, max_retries=3):
     for i in range(max_retries):
         try:
-            # Render上での挙動を安定させるため、強制的なタイムアウト設定を削除（元々の安定した挙動に戻す）
             res = requests.get(url, headers=headers)
             return res
         except Exception as e:
             print(f"Request failed ({i+1}/{max_retries}) for {url}: {e}")
             if i < max_retries - 1:
-                import time
                 time.sleep(1.5)
     raise Exception(f"Failed after {max_retries} retries: {url}")
 
@@ -31,41 +28,6 @@ def get_race_ids(date_str):
         print(f"レース一覧取得エラー（{date_str}）: {e}")
         return []
 
-def get_win5_race_ids(date_str):
-    """指定した日付のWIN5対象レースを取得する（公式WIN5ページのidxを巡回して抽出）"""
-    # YYYYMMDD -> YYYY年M月D日
-    year = date_str[:4]
-    month = str(int(date_str[4:6]))
-    day = str(int(date_str[6:8]))
-    target_date = f"{year}年{month}月{day}日"
-    
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'}
-    
-    try:
-        # idx=0 から順番にページをチェック (最新2件のみに制限してタイムアウトを防ぐ)
-        for idx in range(2):
-            url = f"https://race.netkeiba.com/top/win5.html?idx={idx}"
-            res = fetch_with_retry(url, headers=headers, max_retries=1)
-            res.encoding = 'euc-jp'
-            
-            # ページ内に指定した日付（タイトルなど）が含まれているか確認
-            if target_date in res.text:
-                matches = re.findall(r'race_id=(\d{12})', res.text)
-                
-                # 順番を保持したまま重複を削除
-                unique_races = []
-                for rid in matches:
-                    if rid not in unique_races:
-                        unique_races.append(rid)
-                        
-                if len(unique_races) >= 5:
-                    return unique_races[:5]
-                    
-        return []
-    except Exception as e:
-        print(f"WIN5レース取得エラー（{date_str}）: {e}")
-        return []
-
 def fetch_single_race_1st_place(race_id):
     """1レースの結果ページをスクレイピングし、1着馬の[レース番号, 人気順]を返す"""
     url = f"https://race.netkeiba.com/race/result.html?race_id={race_id}"
@@ -76,8 +38,10 @@ def fetch_single_race_1st_place(race_id):
         
         soup = BeautifulSoup(res.text, 'html.parser')
         
-        # 着順1の行を探す
-        result_table = soup.find('table', class_='RaceNFriendsTable')
+        # 着順1（または現在の1番人気）の行を探す
+        result_table = soup.find('table', class_='RaceTable01') # レース終了後の結果テーブル
+        if not result_table:
+            result_table = soup.find('table', class_='RaceNFriendsTable') # 開催中のオッズテーブル
         if not result_table:
             return None
             
@@ -97,150 +61,15 @@ def fetch_single_race_1st_place(race_id):
         return None
 
 def fetch_1st_place_popularities(race_ids):
-    """複数レースの1着人気順を並列で取得する"""
+    """複数レースの1着人気順を直列で取得する（IPブロック回避のため）"""
     results = {}
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_race = {executor.submit(fetch_single_race_1st_place, rid): rid for rid in race_ids}
-        for future in as_completed(future_to_race):
-            data = future.result()
-            if data:
-                results[data[0]] = data[1]
+    for rid in race_ids:
+        data = fetch_single_race_1st_place(rid)
+        if data:
+            results[data[0]] = data[1]
+        time.sleep(1.5) # 連続アクセスによるブロックを回避
     
     # 元のID順にソートしてリスト化
     sorted_pops = [results[rid] for rid in race_ids if rid in results]
     return sorted_pops
 
-def fetch_live_odds(race_id):
-    """
-    指定レースの馬番、枠番、馬名、騎手、最新オッズ、人気順を取得する
-    """
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'}
-    
-    # 1. 出馬表から基本情報（枠、馬番、馬名、騎手）を取得
-    shutuba_url = f"https://race.netkeiba.com/race/shutuba.html?race_id={race_id}"
-    try:
-        res_s = fetch_with_retry(shutuba_url, headers=headers)
-        res_s.encoding = 'euc-jp'
-        soup_s = BeautifulSoup(res_s.text, 'html.parser')
-    except Exception as e:
-        print(f"Error fetching shutuba for {race_id}: {e}")
-        return []
-
-    horses_info = {}
-    table_s = soup_s.find('table', class_='Shutuba_Table')
-    if table_s:
-        for row in table_s.find_all('tr', class_='HorseList'):
-            waku_td = row.find('td', class_=re.compile('Waku'))
-            umaban_td = row.find('td', class_=re.compile('Umaban'))
-            horse_span = row.find('span', class_='HorseName')
-            jockey_td = row.find('td', class_='Jockey')
-            
-            if umaban_td and horse_span:
-                umaban = umaban_td.get_text(strip=True)
-                waku = waku_td.get_text(strip=True) if waku_td else ""
-                horse_name = horse_span.get_text(strip=True)
-                # 騎手名は改行などがあるため、テキストのみ抽出して整形
-                jockey = jockey_td.get_text(strip=True).split(' ')[0] if jockey_td else ""
-                
-                horses_info[umaban] = {
-                    "waku": waku,
-                    "umaban": umaban,
-                    "horse_name": horse_name,
-                    "jockey": jockey,
-                    "odds": "---",
-                    "popularity": 999
-                }
-
-    # 2. オッズページから最新オッズと人気を取得 (HTMLFallback)
-    odds_url = f"https://race.netkeiba.com/odds/index.html?type=b1&race_id={race_id}"
-    try:
-        res_o = fetch_with_retry(odds_url, headers=headers, max_retries=1)
-        res_o.encoding = 'euc-jp'
-        soup_o = BeautifulSoup(res_o.text, 'html.parser')
-    except Exception as e:
-        print(f"Error fetching odds for {race_id}: {e}")
-        return list(horses_info.values())
-
-    # 3. リアルタイムJSON APIからオッズを取得（当日のレース用）
-    api_url = f"https://race.netkeiba.com/api/api_get_jra_odds.html?race_id={race_id}&type=1&action=init"
-    api_odds_data = {}
-    try:
-        res_api = fetch_with_retry(api_url, headers=headers, max_retries=2)
-        api_json = res_api.json()
-        if "data" in api_json and "odds" in api_json["data"] and "1" in api_json["data"]["odds"]:
-            # "1" は単勝オッズを表す
-            api_odds_data = api_json["data"]["odds"]["1"]
-            print(f"Loaded live odds from JSON API for {race_id}")
-    except Exception as e:
-        print(f"Failed to load JSON odds API for {race_id}: {e}")
-
-    # HTMLからのオッズ取得用にテーブルをパースしておく（APIがない場合のみ使用）
-    html_odds_map = {}
-    tables_o = soup_o.find_all('table', class_='RaceOdds_HorseList_Table')
-    for table_o in tables_o:
-        for row in table_o.find_all('tr'):
-            tds = row.find_all('td')
-            if len(tds) < 5:
-                continue
-            umaban_td = row.find('td', class_=re.compile('W31'))
-            if not umaban_td:
-                umaban_td = tds[1]
-            umaban = umaban_td.get_text(strip=True)
-            odds_td = row.find('td', class_='Popular')
-            if odds_td:
-                html_odds_map[umaban] = odds_td.get_text(strip=True)
-
-    # 全馬に対してオッズ・人気を更新
-    for umaban, h_info in horses_info.items():
-        odds_str = '---.-'
-        popularity = 999
-        horse_key = umaban.zfill(2)
-        
-        if horse_key in api_odds_data:
-            # APIデータが存在すれば優先
-            odds_data = api_odds_data[horse_key]
-            odds_str = odds_data[0]
-            try:
-                popularity = int(odds_data[2])
-            except ValueError:
-                pass
-        elif umaban in html_odds_map:
-            # APIがなければHTMLから
-            odds_str = html_odds_map[umaban]
-
-        h_info["odds"] = odds_str
-        if popularity == 999:
-            try:
-                if odds_str != '---.-' and odds_str != '':
-                    h_info["odds_val"] = float(odds_str)
-            except ValueError:
-                pass
-        else:
-            h_info["popularity"] = popularity
-
-    # リスト化
-    result_list = list(horses_info.values())
-    
-    # 過去レースなどAPIがない場合のフォールバック用: popularityが999のままでオッズ(float)があればソートして付与
-    fallback_horses = [h for h in result_list if h["popularity"] == 999 and "odds_val" in h]
-    fallback_horses.sort(key=lambda x: x["odds_val"])
-    for i, h in enumerate(fallback_horses):
-        h["popularity"] = i + 1
-
-    # 全体を人気順 -> 馬番順でソート
-    result_list.sort(key=lambda x: (x["popularity"], int(x["umaban"]) if x["umaban"].isdigit() else 999))
-    
-    return result_list
-
-def get_win5_live_odds(race_ids):
-    """指定された複数のレースIDのリアルタイムオッズを直列で取得する（IPブロック回避のため）"""
-    results = {}
-    for r_id in race_ids:
-        try:
-            data = fetch_live_odds(r_id)
-            results[r_id] = data
-        except Exception as e:
-            print(f"Failed to fetch live odds for {r_id}: {e}")
-            results[r_id] = []
-        time.sleep(1.5) # 連続アクセスブロック回避
-    return results

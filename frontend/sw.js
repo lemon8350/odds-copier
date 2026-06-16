@@ -1,4 +1,4 @@
-const CACHE_NAME = 'win5-meter-v3';
+const CACHE_NAME = 'win5-meter-v4';
 const urlsToCache = [
     '/',
     '/index.html',
