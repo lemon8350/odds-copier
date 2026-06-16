@@ -10,11 +10,12 @@ def get_win5_race_ids(date_str):
     soup = BeautifulSoup(res.text, 'html.parser')
     
     candidates = []
-    for a in soup.find_all('a', href=re.compile(r'shutuba\.html\?race_id=\d{12}')):
+    for a in soup.find_all('a', href=re.compile(r'(shutuba|result)\.html\?race_id=\d{12}')):
         m = re.search(r'race_id=(\d{12})', a['href'])
         if not m: continue
         rid = m.group(1)
         r_num = int(rid[-2:])
+        # Exclude 12R because WIN5 is almost always 10R and 11R, or 9R, 10R, 11R
         if r_num not in [9, 10, 11]:
             continue
         
@@ -29,7 +30,6 @@ def get_win5_race_ids(date_str):
         
     sorted_cands = sorted(unique_candidates.items(), key=lambda x: x[1])
     if len(sorted_cands) >= 5:
-        # 後ろから5つ取得し、時間順に並び替え
         win5_races = [x[0] for x in sorted_cands[-5:]]
         return sorted(win5_races, key=lambda rid: unique_candidates[rid])
     return []

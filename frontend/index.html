@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WIN5 難易度メーター</title>
+    <title>オッズ＆人気順 コピー機</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1e1e2e">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -18,7 +18,7 @@
     <div class="app-container">
         <header>
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                <h1>WIN5 Meter</h1>
+                <h1>オッズ＆人気順 コピー機</h1>
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <input type="date" id="target-date" style="margin-bottom: 0; padding: 4px; height: 28px; width: auto; font-size: 14px; background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.3); border-radius: 4px;">
                     <div class="status-indicator" id="status-indicator"></div>
@@ -26,58 +26,46 @@
         </header>
 
         <main>
-            <!-- Meter View -->
-            <div id="view-meter" class="view-section active">
-            <!-- Gauge Section -->
-            <section class="gauge-card glass">
-                <h2>Remaining WIN5 Allowance</h2>
-                <div class="gauge-container">
-                    <svg viewBox="0 0 100 50" class="gauge">
-                        <path class="gauge-bg" d="M 10,50 A 40,40 0 0,1 90,50" fill="none" stroke-width="12" stroke-linecap="round"></path>
-                        <path class="gauge-value" id="gauge-value" d="M 10,50 A 40,40 0 0,1 90,50" fill="none" stroke-width="12" stroke-linecap="round" stroke-dasharray="125.6" stroke-dashoffset="125.6"></path>
-                    </svg>
-                    <div class="gauge-center">
-                        <span class="gauge-text" id="remaining-value">--</span>
-                        <span class="gauge-label">残りの余裕</span>
+            <!-- Copier View -->
+            <div id="view-copier" class="view-section active">
+                <section class="detail-card glass" style="margin-bottom: 15px;">
+                    <h3>対象レースを選択</h3>
+                    <p style="font-size: 12px; margin-bottom: 10px; color: #ccc;">カレンダーの日付に対応するレース一覧から、WIN5対象の5レースを選んでください。</p>
+                    
+                    <div id="race-selectors" style="display: flex; flex-direction: column; gap: 10px;">
+                        <!-- Race 1-5 Dropdowns -->
+                        <div class="controls">
+                            <label>1レース目</label>
+                            <select id="win5-race-1"><option value="">ロード中...</option></select>
+                        </div>
+                        <div class="controls">
+                            <label>2レース目</label>
+                            <select id="win5-race-2"><option value="">ロード中...</option></select>
+                        </div>
+                        <div class="controls">
+                            <label>3レース目</label>
+                            <select id="win5-race-3"><option value="">ロード中...</option></select>
+                        </div>
+                        <div class="controls">
+                            <label>4レース目</label>
+                            <select id="win5-race-4"><option value="">ロード中...</option></select>
+                        </div>
+                        <div class="controls">
+                            <label>5レース目</label>
+                            <select id="win5-race-5"><option value="">ロード中...</option></select>
+                        </div>
                     </div>
-                </div>
-                <div class="gauge-message" id="gauge-message">
-                    データ未取得
-                </div>
-            </section>
+                    
+                    <button class="btn primary" id="btn-fetch-odds" style="margin-top: 15px;">オッズと人気順を取得</button>
+                    <div class="loading-spinner hidden" id="spinner-odds"></div>
+                </section>
 
-            <!-- Details Section -->
-            <section class="details-grid">
-                <div class="detail-card glass">
-                    <h3>土曜天井 (上限)</h3>
-                    <div class="val-box">
-                        <span class="value" id="ceiling-value">--</span>
-                        <span class="unit">和</span>
-                    </div>
-                    <button class="btn primary" id="btn-fetch-sat">取得する</button>
-                    <div class="loading-spinner hidden" id="spinner-sat"></div>
-                </div>
-                
-                <div class="detail-card glass">
-                    <h3>日曜現在 (消費)</h3>
-                    <div class="val-box">
-                        <span class="value" id="current-value">--</span>
-                        <span class="unit">和</span>
-                    </div>
-                    <div class="controls">
-                        <label for="race-select">指定レース</label>
-                        <select id="race-select">
-                            <option value="9" selected>第9Rまで</option>
-                            <option value="10">第10Rまで</option>
-                            <option value="11">第11Rまで</option>
-                            <option value="12">第12Rまで</option>
-                        </select>
-                    </div>
-                    <button class="btn secondary" id="btn-fetch-sun">取得する</button>
-                    <div class="loading-spinner hidden" id="spinner-sun"></div>
-                </div>
-            </section>
-            </div> <!-- End view-meter -->
+                <section class="detail-card glass">
+                    <h3>コピー用テキスト</h3>
+                    <textarea id="odds-output" rows="12" style="width: 100%; border-radius: 4px; padding: 10px; font-size: 13px; background: rgba(255,255,255,0.9); color: #000; border: none; margin-bottom: 10px;" readonly></textarea>
+                    <button class="btn secondary" id="btn-copy-odds">クリップボードにコピー</button>
+                </section>
+            </div> <!-- End view-copier -->
         </main>
     </div>
 

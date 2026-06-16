@@ -1,8 +1,7 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from calculator import get_popularity_sum
-from scraper import get_race_ids
+from scraper import get_race_ids, get_win5_race_ids, get_win5_live_odds
 from datetime import datetime, timedelta
 import os
 from typing import List
@@ -37,36 +36,19 @@ def get_status():
         "target_sunday": sun
     }
 
+@app.get("/api/races")
+def api_get_races(target_date: str = Query(...)):
+    """指定された日付の全レースIDと、予測されたWIN5対象レースIDを返す"""
+    race_ids = get_race_ids(target_date)
+    win5_races = get_win5_race_ids(target_date)
+    return {"date": target_date, "races": race_ids, "win5_races": win5_races}
 
-@app.get("/api/saturday-ceiling")
-def get_saturday_ceiling(target_date: str = Query(None, description="YYYYMMDD形式の日付（省略時は自動判定）")):
-    if target_date:
-        sat_date = target_date
-    else:
-        sat_date, _ = get_weekend_dates()
-    # 土曜日は全レースを対象（up_to_race=None）
-    data = get_popularity_sum(sat_date, up_to_race=None)
-    return {
-        "date": sat_date,
-        "ceiling": data["sum"],
-        "count": data["count"],
-        "details": data["details"]
-    }
+@app.get("/api/win5-live-odds")
+def api_get_win5_live_odds(race_ids: List[str] = Query(...)):
+    """指定されたレースIDのリストに対して、リアルタイムオッズを返す"""
+    data = get_win5_live_odds(race_ids)
+    return {"races": data}
 
-@app.get("/api/sunday-current")
-def get_sunday_current(up_to_race: int = Query(9, description="集計するレース番号の上限（デフォルト第9レースまで）"), target_date: str = Query(None, description="YYYYMMDD形式")):
-    if target_date:
-        sun_date = target_date
-    else:
-        _, sun_date = get_weekend_dates()
-    data = get_popularity_sum(sun_date, up_to_race=up_to_race)
-    return {
-        "date": sun_date,
-        "current_sum": data["sum"],
-        "count": data["count"],
-        "up_to_race": up_to_race,
-        "details": data["details"]
-    }
 
 # フロントエンドの静的ファイルをマウント
 frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")

@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: win5-meter
+    name: odds-copier
     env: python
     plan: free
     buildCommand: pip install -r backend/requirements.txt
