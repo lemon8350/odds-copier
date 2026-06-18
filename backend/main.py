@@ -43,11 +43,13 @@ def api_get_races(target_date: str = Query(...)):
     win5_races = get_win5_race_ids(target_date)
     return {"date": target_date, "races": race_ids, "win5_races": win5_races}
 
+from fastapi.responses import JSONResponse
+
 @app.get("/api/win5-live-odds")
 def api_get_win5_live_odds(race_ids: List[str] = Query(...)):
     """指定されたレースIDのリストに対して、リアルタイムオッズを返す"""
     data = get_win5_live_odds(race_ids)
-    return {"races": data}
+    return JSONResponse(content={"races": data}, media_type="application/json; charset=utf-8")
 
 
 # フロントエンドの静的ファイルをマウント

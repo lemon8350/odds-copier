@@ -78,9 +78,9 @@ def fetch_single_race_1st_place(race_id):
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'}
     try:
         res = fetch_with_retry(url, headers=headers)
-        res.encoding = 'euc-jp'
+        # res.encoding = 'utf-8' # Let requests auto-detect
         
-        soup = BeautifulSoup(res.text, 'html.parser')
+        soup = BeautifulSoup(res.content, 'html.parser')
         
         # 着順1の行を探す
         result_table = soup.find('table', class_='RaceNFriendsTable')
@@ -126,8 +126,8 @@ def fetch_live_odds(race_id):
     shutuba_url = f"https://race.netkeiba.com/race/shutuba.html?race_id={race_id}"
     try:
         res_s = fetch_with_retry(shutuba_url, headers=headers)
-        res_s.encoding = 'euc-jp'
-        soup_s = BeautifulSoup(res_s.text, 'html.parser')
+        # res_s.encoding = 'utf-8' # Let requests auto-detect
+        soup_s = BeautifulSoup(res_s.content, 'html.parser')
     except Exception as e:
         print(f"Error fetching shutuba for {race_id}: {e}")
         return []
@@ -161,8 +161,8 @@ def fetch_live_odds(race_id):
     odds_url = f"https://race.netkeiba.com/odds/index.html?type=b1&race_id={race_id}"
     try:
         res_o = fetch_with_retry(odds_url, headers=headers, max_retries=1)
-        res_o.encoding = 'euc-jp'
-        soup_o = BeautifulSoup(res_o.text, 'html.parser')
+        # res_o.encoding = 'utf-8' # Let requests auto-detect
+        soup_o = BeautifulSoup(res_o.content, 'html.parser')
     except Exception as e:
         print(f"Error fetching odds for {race_id}: {e}")
         return list(horses_info.values())

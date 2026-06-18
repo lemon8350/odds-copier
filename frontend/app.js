@@ -24,7 +24,7 @@ const API_BASE = window.location.protocol === 'file:' || window.location.hostnam
 // --- Functions ---
 async function fetchAPI(endpoint) {
     try {
-        const res = await fetch(`${API_BASE}${endpoint}`);
+        const res = await fetch(`${API_BASE}${endpoint}`, { cache: 'no-store' });
         if (!res.ok) throw new Error('API Error');
         statusIndicator.style.backgroundColor = 'var(--accent-success)';
         statusIndicator.style.boxShadow = '0 0 10px var(--accent-success)';
@@ -152,14 +152,14 @@ btnFetchOdds.addEventListener('click', async () => {
         let outText = "";
         for (const r_id of raceIds) {
             outText += `【${formatRaceName(r_id)}】\n`;
-            outText += "馬番\t馬名\t単勝オッズ\t人気順\n"; // Excel用ヘッダー
+            outText += "馬番\t馬名\t騎手\t単勝オッズ\t人気順\n"; // Excel用ヘッダー
             const horses = data.races[r_id] || [];
             if (horses.length === 0) {
                 outText += "データがありません\n\n";
                 continue;
             }
             horses.forEach(h => {
-                outText += `${h.umaban}\t${h.horse_name}\t${h.odds}\t${h.popularity}\n`;
+                outText += `${h.umaban}\t${h.horse_name}\t${h.jockey}\t${h.odds}\t${h.popularity}\n`;
             });
             outText += "\n";
         }
